@@ -48,6 +48,10 @@ class CardPanel extends Panel with LayoutContainer {
 
     def show(l : Constraints) = layoutManager.show(peer, l)
 
+    def next() { layoutManager.next(peer) }
+
+    def previous() { layoutManager.previous(peer) }
+
     protected def constraintsFor(comp: Component) = cards.iterator.find { case (_, c) => c eq comp}.map(_._1).orNull
 }
 
