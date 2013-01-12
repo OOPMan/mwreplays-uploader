@@ -36,9 +36,12 @@ import java.io._
 import java.util.regex.Pattern
 import scala.actors._
 import java.awt.datatransfer._;
-import java.awt.Toolkit;
+import java.awt.Toolkit
+import javax.swing.UIManager
+;
 
 //TODO: Fix all UI alignments and sizes
+//TODO: Reorganise code
 object Uploader extends SimpleSwingApplication {
 
     val uploadKeyPattern = Pattern.compile("""stopUpload\(\d,'','([^']+)'\)""")
@@ -46,6 +49,14 @@ object Uploader extends SimpleSwingApplication {
     def top = new MainFrame {
         title = "mwreplays.com Uploader"
         preferredSize = new Dimension(800, 200)
+        // Set Nimbus LaF if possible
+        try {
+            val nimbus = UIManager.getInstalledLookAndFeels.find { info => info.getName == "Nimbus" }
+            UIManager.setLookAndFeel(if(nimbus.isDefined) nimbus.get.getClassName else UIManager.getCrossPlatformLookAndFeelClassName)
+        } catch {
+            case _ =>
+        }
+
         contents = new BorderPanel {
             // Define Step 1 Panel: Login Details
             val step1 = new GridPanel(2, 2) {
@@ -125,47 +136,50 @@ object Uploader extends SimpleSwingApplication {
 
                 /* The actual upload needs to happen in a separate thread so as to allow the status.append operation to work properly */
                 class UploadActor extends Actor {
-                    def act() { loop { react {
-                        case "UPLOAD" =>
-                            // Init
-                            val http = new Http
-                            // Login
-                            uploadStatus.append("Logging in...\n")
-                            val loginRequest = url("http://mwreplays.com/login.php?act=login") << Map("username" -> step1.username.text, "password" -> new String(step1.password.password), "remlog" -> "0")
-                            val loginFailed = http(loginRequest >- { responseString => responseString contains "http://mwreplays.com/login.php" })
-                            if(loginFailed) {
-                                //TODO: Fix Dialog Size, Style and Spacing
-                                val dialog = new Dialog(top)
-                                dialog.open()
-                                dialog.contents = new BorderPanel {
-                                    layout(new Label("Unable to login. Check username, password and network connection")) = Center
-                                    layout(Button("Ok") { dialog.close() }) = South
-                                }
-                            } else {
-                                // Upload
-                                val uploadRequest = url("http://mwreplays.com/upload_frame.php?teg=up")
-                                linksView.listData = for(file <- step2.fileList.listData) yield {
-                                    uploadStatus.append("Uploading %s..." format file)
-                                    http(uploadRequest <<* ("file", file) >- { responseString =>
-                                        val matcher = uploadKeyPattern.matcher(responseString)
-                                        if(matcher.find()) {
-                                            uploadStatus.append("Complete!\n")
-                                            "http://mwreplays.com/replay/%s" format matcher.group(1)
+                    def act() {
+                        loop {
+                            react {
+                                case "UPLOAD" =>
+                                    // Init
+                                    val http = new Http
+                                    // Login
+                                    uploadStatus.append("Logging in...\n")
+                                    val loginRequest = url("http://mwreplays.com/login.php?act=login") << Map("username" -> step1.username.text, "password" -> new String(step1.password.password), "remlog" -> "0")
+                                    val loginFailed = http(loginRequest >- { responseString => responseString contains "http://mwreplays.com/login.php" })
+                                    if(loginFailed) {
+                                        //TODO: Fix Dialog Size, Style and Spacing
+                                        val dialog = new Dialog(top)
+                                        dialog.open()
+                                        dialog.contents = new BorderPanel {
+                                            layout(new Label("Unable to login. Check username, password and network connection")) = Center
+                                            layout(Button("Ok") { dialog.close() }) = South
                                         }
-                                        else {
-                                            uploadStatus.append("Failed!\n")
-                                            "Unable to upload %s" format file
-                                        }
-                                }) }
-                                // Finish
-                                back.action = copyLinksAction
-                                next.action = exitAction
-                                back.enabled = true
-                                next.enabled = true
-                                cards.next()
-                                step.text = "Upload Results"
-                                exit()
-                            } }
+                                    } else {
+                                        // Upload
+                                        val uploadRequest = url("http://mwreplays.com/upload_frame.php?teg=up")
+                                        linksView.listData = for(file <- step2.fileList.listData) yield {
+                                            uploadStatus.append("Uploading %s..." format file)
+                                            http(uploadRequest <<* ("file", file) >- { responseString =>
+                                                val matcher = uploadKeyPattern.matcher(responseString)
+                                                if(matcher.find()) {
+                                                    uploadStatus.append("Complete!\n")
+                                                    "http://mwreplays.com/replay/%s" format matcher.group(1)
+                                                }
+                                                else {
+                                                    uploadStatus.append("Failed!\n")
+                                                    "Unable to upload %s" format file
+                                                }
+                                        }) }
+                                        // Finish
+                                        back.action = copyLinksAction
+                                        next.action = exitAction
+                                        cards.next()
+                                        step.text = "Upload Results"
+                                    }
+                                    back.enabled = true
+                                    next.enabled = true
+                                    exit()
+                            }
                         }
                     }
                 }
