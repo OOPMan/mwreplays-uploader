@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.9.2"
 
-seq(IzPack.settings: _*)
+seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
 
 libraryDependencies += "net.databinder" %% "dispatch-http" % "0.8.9"
 
